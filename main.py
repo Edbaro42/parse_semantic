@@ -4,7 +4,8 @@ import json
 import csv
 from datetime import datetime
 from collections import Counter
-from pymorphy2 import MorphAnalyzer
+from pymorphy3 import MorphAnalyzer
+from urllib.parse import urlparse
 import time
 import math
 import re
@@ -77,14 +78,21 @@ for phrase in phrases:
             if not excluded:
                 
                 url_lemmas = set()
-                hlwords = doc.findall('.//title/hlword')
+                hlwords = doc.findall('.//title/hlword') + doc.findall('.//headline/hlword')
                 for hlword in hlwords:
                     hlword_text = hlword.text.lower()
                     hlword_lemma = morph.parse(hlword_text)[0].normal_form
                     url_lemmas.add(hlword_lemma)
 
-                if all(word in url_lemmas for word in lemmas):
+                if "ozon.ru" in url_text:
                     url_list.append(url_text)
+                elif all(word in url_lemmas for word in lemmas):  
+                    def is_main_page(url):
+                        parsed_url = urlparse(url)
+                        path = parsed_url.path.strip('/')
+                        return len(path) == 0
+                    if not is_main_page(url_text):
+                        url_list.append(url_text)
 
     # Открываем CSV-файл для записи данных
     with open(filename, 'a', newline='', encoding='utf-8') as csvfile:
@@ -108,13 +116,13 @@ for phrase in phrases:
                 "filter": [
                     {"column": "has_question", "filter_type": "eq", "val": 0},
                     {"column": "has_toponym", "filter_type": "eq", "val": 0},
-                    {"column": "position", "filter_type": "less", "val": 13},
+                    {"column": "position", "filter_type": "less", "val": 11},
                     {"column": "region_wsqso", "filter_type": "gr_or_eq", "val": 0},
                     {"column": "keyword", "filter_type": "not_like_any",
                      "val": minus_words_list}
                 ]
             }
-
+			
             # Отправляем POST-запрос на API
             response = requests.post(API_URL_MUTAGEN, json=payload)
 
@@ -137,7 +145,7 @@ for phrase in phrases:
 
         # Удаление дублирующихся записей
         data_list = list(set(tuple(item) for item in data_list))
-		
+        
         keywords_str = '\n'.join(['\"[{}]\"'.format(' '.join(['!{}'.format(word) for word in item[1].split()])) for item in data_list])
 
         # Проверяем, что есть хотя бы один keyword в data_list
@@ -157,7 +165,7 @@ for phrase in phrases:
             payload = {
                 "text": "\n".join(chunk),
                 "token": API_KEY_WORDKEEPER,
-                "geo": 213
+                "geo": 1
             }
 
             # Отправляем POST-запрос на API
