@@ -122,7 +122,7 @@ for phrase in phrases:
                      "val": minus_words_list}
                 ]
             }
-			
+            
             # Отправляем POST-запрос на API
             response = requests.post(API_URL_MUTAGEN, json=payload)
 
@@ -146,6 +146,25 @@ for phrase in phrases:
         # Удаление дублирующихся записей
         data_list = list(set(tuple(item) for item in data_list))
         
+        with open('sps.txt', 'r', encoding='utf-8') as sps_file:
+            sps_words = sps_file.read().splitlines()
+
+        new_data_list = []
+        for item in data_list:
+            passage = item[1]
+            words = passage.split()
+            should_remove = False
+            
+            for word in sps_words:
+                if words[0] == word or words[-1] == word:
+                    should_remove = True
+                    break
+            
+            if not should_remove:
+                new_data_list.append(item)
+
+        data_list = new_data_list     
+
         keywords_str = '\n'.join(['\"[{}]\"'.format(' '.join(['!{}'.format(word) for word in item[1].split()])) for item in data_list])
 
         # Проверяем, что есть хотя бы один keyword в data_list
