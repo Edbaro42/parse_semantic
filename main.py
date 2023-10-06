@@ -9,12 +9,57 @@ from urllib.parse import urlparse
 import time
 import math
 import re
+import tkinter as tk
 
-API_URL_YANDEX_SEARCH = ""
-API_URL_MUTAGEN = ""
-API_KEY_WORDKEEPER = ""
+
+def show_completion_message():
+    window = tk.Tk()
+    window.title("Завершено")
+    label = tk.Label(window, text="Сбор семантики завершен", padx=200, pady=30)
+    label.pack()
+    window.mainloop()
+
+with open('keys.txt', 'r', encoding='utf-8') as file:
+    # Читаем все строки из файла
+    lines = file.readlines()
+
+# Создаем словарь для хранения найденных значений
+values = {}
+
+# Определяем нужные ключи
+keys = [
+    'API_URL_YANDEX_SEARCH', 'API_URL_MUTAGEN', 'API_KEY_WORDKEEPER',
+    'GEO_MUTAGEN', 'HAS_QUESTION', 'HAS_TOPONYM', 'MIN_POSITION', 'MIN_FREQ', 
+    'FILTER_TYPE_QUESTION', 'FILTER_TYPE_TOPONYM', 'API_URL_YANDEX_SERP',
+    'GEO_WORDKEEPER', 'FILTER_QUERIES'
+]
+
+# Обходим каждую строку и ищем нужные ключи
+for line in lines:
+    for key in keys:
+        if line.startswith(key):
+            # Находим значение после знака равно и удаляем пробелы
+            value = line.split('==')[1].strip()
+            # Сохраняем значение в словаре
+            values[key] = value
+
+# Присваиваем значения переменным
+API_URL_YANDEX_SEARCH = values['API_URL_YANDEX_SEARCH']
+API_URL_YANDEX_SERP = values['API_URL_YANDEX_SERP']
+API_URL_MUTAGEN = values['API_URL_MUTAGEN']
+API_KEY_WORDKEEPER = values['API_KEY_WORDKEEPER']
+GEO_MUTAGEN = values['GEO_MUTAGEN']
+HAS_QUESTION = int(values['HAS_QUESTION'])
+HAS_TOPONYM = int(values['HAS_TOPONYM'])
+MIN_POSITION = int(values['MIN_POSITION'])
+GEO_WORDKEEPER = int(values['GEO_WORDKEEPER'])
+MIN_FREQ = int(values['MIN_FREQ'])
+FILTER_TYPE_QUESTION = values['FILTER_TYPE_QUESTION']
+FILTER_TYPE_TOPONYM = values['FILTER_TYPE_TOPONYM']
+FILTER_QUERIES = values['FILTER_QUERIES']
 
 filename = 'results_{}.csv'.format(datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
+print(f"СОЗДАЕМ ФАЙЛ {filename}")
 
 # Открываем CSV-файл для записи данных
 with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
@@ -34,18 +79,32 @@ morph = MorphAnalyzer()
 with open('h1.txt', 'r', encoding='utf-8') as file:
     phrases = file.readlines()
 
-for phrase in phrases:
-    phrase = phrase.strip().lower() + " купить"
+count = 0
 
+for phrase in phrases:
+    
+    count = count + 1
+   
+    print(f"\n####################\n Начало итерации {count} \n####################")
+
+    phrase = phrase.strip().lower() + " купить"
+    pattern = r"(\d+)([xхна\*]+)(\d+)"
+    replacement = r"\1 \3"
+    re_results = re.sub(pattern, replacement, phrase)
+    re_results = re.sub(r"\-|\/|\\|\|", r" ", re_results)
+    re_results = re.sub(r"\"|\'|\(.+\)", r"", re_results)
+    
     lemmas = set()
 
-    for word in phrase.split():
+    for word in re_results.split():
         if word.lower() not in ex_lemms:
             lemma = morph.parse(word)[0].normal_form
             lemmas.add(lemma)
     
     api_url = API_URL_YANDEX_SEARCH + phrase
     response = requests.get(api_url)
+    phrase_on_print = phrase.replace(" купить", "")
+    print(f"Собираем SERP для заголовка h1: \"{phrase_on_print}\"")
     
     try:
         xml_data = ET.fromstring(response.text)
@@ -93,7 +152,10 @@ for phrase in phrases:
                         return len(path) == 0
                     if not is_main_page(url_text):
                         url_list.append(url_text)
+                        
+                        print(f"  {url_text}")
 
+    print(f"Собираем семантику с помощью https://mutagen.ru/ по урлам из SERP'а для h1: \"{phrase_on_print}\"...")
     # Открываем CSV-файл для записи данных
     with open(filename, 'a', newline='', encoding='utf-8') as csvfile:
         writer = csv.writer(csvfile)
@@ -103,28 +165,28 @@ for phrase in phrases:
         with open('minus_words.txt', 'r', encoding='utf-8') as minus_words_file:
             minus_words = minus_words_file.readlines()
             
-        minus_words = [minus_word.strip().lower() for minus_word in minus_words]  # Удаляем лишние пробелы и символы новой строки
+        minus_words = [minus_word.strip().lower() for minus_word in minus_words]
         minus_words_list = ', '.join(minus_words)  # Соединяем все слова через запятую
 
         # Проходим по каждому URL и отправляем запросы на API
         for url in url_list:
             # Формируем тело запроса
             payload = {
-                "region": "yandex_msk",
+                "region": GEO_MUTAGEN,
                 "report": "report_keywords_organic",
                 "page": url,
                 "filter": [
-                    {"column": "has_question", "filter_type": "eq", "val": 0},
-                    {"column": "has_toponym", "filter_type": "eq", "val": 0},
-                    {"column": "position", "filter_type": "less", "val": 11},
-                    {"column": "region_wsqso", "filter_type": "gr_or_eq", "val": 0},
-                    {"column": "keyword", "filter_type": "not_like_any",
-                     "val": minus_words_list}
+                    {"column": "has_question", "filter_type": FILTER_TYPE_QUESTION, "val": HAS_QUESTION},
+                    {"column": "has_toponym", "filter_type": FILTER_TYPE_TOPONYM, "val": HAS_TOPONYM},
+                    {"column": "position", "filter_type": "less_or_eq", "val": MIN_POSITION},
+                    {"column": "region_wsqso", "filter_type": "gr_or_eq", "val": MIN_FREQ},
+                    {"column": "keyword", "filter_type": "not_like_any", "val": minus_words_list}
                 ]
             }
             
             # Отправляем POST-запрос на API
             response = requests.post(API_URL_MUTAGEN, json=payload)
+            time.sleep(2)
 
             data = response.json()
 
@@ -138,7 +200,8 @@ for phrase in phrases:
 
                 # Добавляем данные в список и словарь
                 data_list.append([phrase, keyword])
-                    
+          
+        print(f"Чистим семантику от мусора...")          
         # Удаление фраз, которые встречаются только один раз
         keyword_counts = Counter([item[1] for item in data_list])
         data_list = [item for item in data_list if keyword_counts[item[1]] > 1]
@@ -146,6 +209,7 @@ for phrase in phrases:
         # Удаление дублирующихся записей
         data_list = list(set(tuple(item) for item in data_list))
         
+        # Удаление недописанных запросов
         with open('sps.txt', 'r', encoding='utf-8') as sps_file:
             sps_words = sps_file.read().splitlines()
 
@@ -163,13 +227,32 @@ for phrase in phrases:
             if not should_remove:
                 new_data_list.append(item)
 
-        data_list = new_data_list     
+        data_list = new_data_list 
+            
+        # Удаление слов без кириллицы, однословных несуществительных и существительных не им. падежа
+        clear_data_list = []
+        for item in data_list:
+            phrase_clear = item[1]
+
+            if re.match(FILTER_QUERIES, phrase_clear):
+                continue
+
+            word = phrase_clear.split()
+            if len(word) == 1 and word[0] not in open('for_pymorphy.txt', 'r', encoding='utf-8').read():
+                parsed_word = morph.parse(''.join(word))[0]
+                if not (parsed_word.tag.POS == 'NOUN' and parsed_word.tag.case == 'nomn'):
+                    continue
+            clear_data_list.append(item)
+            
+        data_list = clear_data_list
 
         keywords_str = '\n'.join(['\"[{}]\"'.format(' '.join(['!{}'.format(word) for word in item[1].split()])) for item in data_list])
 
+        print("Отправляем фразы в https://word-keeper.ru/ для сбора \"[!самой !точной !частотности]\"...")  
         # Проверяем, что есть хотя бы один keyword в data_list
         if not keywords_str:
             print("Нет ключевых слов для отправки запроса")
+            print(f"Конец итерации {count}")
             continue
 
         # Разделяем строку на фразы по разделителю \n
@@ -184,7 +267,7 @@ for phrase in phrases:
             payload = {
                 "text": "\n".join(chunk),
                 "token": API_KEY_WORDKEEPER,
-                "geo": 1
+                "geo": GEO_WORDKEEPER
             }
 
             # Отправляем POST-запрос на API
@@ -193,6 +276,7 @@ for phrase in phrases:
             if 'id' in response.json():
                 result_id = response.json()['id']
                 time.sleep(10)
+                print("Ждем ответа от word-keeper.ru...")
 
                 while True:
                     # Создаем тело запроса
@@ -204,12 +288,15 @@ for phrase in phrases:
                     # Отправляем POST-запрос на API
                     response = requests.post('https://word-keeper.ru/api/get_result', json=payload)
 
-                    if 'status' in response.json() and response.json()['status'] == "ok":
+                    if response.status_code != 200 or response.json()['status'] == "error" or response.json()['results'] is None:
+                        print(f"Word-Keeper вернул ошибку при попытке получения результата: {response.status_code}|{response.json()['status']} (частотности не получены)")
                         break
-                    else:
+                    elif response.json()['status'] == "work":
                         time.sleep(10)
-
-                results = response.json()['results']
+                        print("...продолжаем ждать ответа от word-keeper.ru...")
+                    else:
+                        results = response.json()['results']
+                        break                    
                 
                 for keyword, region_wsqso in list(results.items()):
                     if int(region_wsqso) < 3:
@@ -219,19 +306,25 @@ for phrase in phrases:
                     keyword = re.sub(r'["\'!\[\]]', '', keyword)
                     phrase = phrase.replace(" купить", "")
                     data_list.append([phrase, keyword, region_wsqso])
+                    
+                data_list = sorted(data_list, key=lambda x: int(x[2]), reverse=True)
+                
+                # Создаем тело запроса
+                payload = {
+                    "token": API_KEY_WORDKEEPER,
+                    "id": result_id
+                }
 
-            sorted_data_list = sorted(data_list, key=lambda x: int(x[2]), reverse=True)
+                # Отправляем POST-запрос на API
+                response = requests.post('https://word-keeper.ru/api/remove', json=payload)
+                
+            else:
+                print(f"Word-Keeper вернул ошибку при попытке отправить задачу: {response.status_code}|{response.json()['status']} (частотности не получены)")
 
-            # Записываем данные из списка в CSV файл
-            writer.writerows(sorted_data_list)
-
-            # Создаем тело запроса
-            payload = {
-                "token": API_KEY_WORDKEEPER,
-                "id": result_id
-            }
-
-            # Отправляем POST-запрос на API
-            response = requests.post('https://word-keeper.ru/api/remove', json=payload)
+        print(f"Записываем семантику и ее частотку для h1 \"{phrase_on_print}\" в csv...")               
+        # Записываем данные из списка в CSV файл
+        writer.writerows(data_list)     
 
     url_list = []
+
+show_completion_message()
