@@ -1,0 +1,38 @@
+####
+Строки чувствительны к изменениям, менять с аккуратностью. Два знака равно нужны обязательно.
+####
+
+## Сюда ставим на место <токен> ставим наш токен в Мутагене. По тарифам лучше брать предпоследний или последний тариф.
+API_URL_MUTAGEN == http://api.mutagen.ru/json/<токен>/mutagen.serp.report/
+
+## Сюда вместо <токен> ставим наш токен из ВордКипера. У него сменились тарифы, с API можно работать начиная с Comfort
+API_KEY_WORDKEEPER == <токен>
+
+## Сюда ставим полный адрес с токеном для GET запросов в https://xmlproxy.ru/. Из интересного тут параметры lr=213 (это Мск) и groups-on-page%3D20, где последняя 20 - кол-во сниппетов.
+## Эмпирически вывел, что как раз 20 сниппетов и нужно собирать, но можно поиграться.
+## user=<user_id>&key=<secret_key> - эти данные выдаст биржа.
+API_URL_YANDEX_SEARCH ==  https://yandex.ru/search/xml?user=<user_id>&key=<secret_key>&l10n=ru&filter=moderate&groupby=attr%3Dd.mode%3Ddeep.groups-on-page%3D20.docs-in-group%3D1&sortby=rlv&maxpassages=1&page=0&lr=213&query=
+
+## Через этот ключ собираем серпы для кластеризации
+API_URL_YANDEX_SERP ==  https://yandex.ru/search/xml?user=<user_id>&key=<secret_key>&l10n=ru&filter=moderate&groupby=attr%3Dd.mode%3Ddeep.groups-on-page%3D15.docs-in-group%3D1&sortby=rlv&maxpassages=1&page=0&lr=213&query=
+
+## Это настройки для сбора в Мутагене. Все расшифровки и подробности тут https://mutagen.ru/?p=api. Будут вопросы - пишите.
+GEO_MUTAGEN == yandex_msk
+HAS_QUESTION == 0
+HAS_TOPONYM == 0
+FILTER_TYPE_QUESTION == eq
+FILTER_TYPE_TOPONYM == eq
+MIN_POSITION == 10
+MIN_FREQ == 0
+
+## Здесь в формате Yandex lr= указываем гео, по которому хотим собрать частотности из ВордКипера
+GEO_WORDKEEPER == 1
+
+## Сюда, в зависимости от потребностей, ставим фильтрацию ненужных запросов (вместе с кавычками '').
+FILTER_QUERIES == '^[A-Za-z0-9\-\s\+]+$'
+##
+Исключаем все запросы состоящие только из цифр и/или латиницы: '^[A-Za-z0-9\-\s\+]+$'
+Исключаем все запросы состоящие только из цифр: '^[0-9\-\s\+]+$'
+Исключаем все запросы состоящие только из латиницы: '^[A-Za-z\-\s\+]+$'
+Не исключаем ничего: ''
+##
